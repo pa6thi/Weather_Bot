@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>Mobile Weather Bot PWA</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111a2b;
+      --panel-2: #17233a;
+      --text: #e8eefc;
+      --muted: #a6b4d6;
+      --accent: #7cc7ff;
+      --accent-2: #9ff3d2;
+      --danger: #ff9a9a;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 12px 30px rgba(0,0,0,0.28);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(180deg, #09111d 0%, #0e1627 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 16px 14px 32px;
+    }
+
+    .hero {
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: radial-gradient(circle at top right, rgba(124,199,255,0.18), transparent 35%), var(--panel);
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.7rem;
+      line-height: 1.1;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin: 0 0 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    textarea, input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 14px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .helper {
+      margin-top: 8px;
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 48px;
+    }
+
+    .primary {
+      background: linear-gradient(135deg, var(--accent), #5ea8ff);
+      color: #081220;
+      flex: 1 1 180px;
+    }
+
+    .secondary {
+      background: #22314f;
+      color: var(--text);
+      flex: 1 1 130px;
+    }
+
+    .tertiary {
+      background: #1a2842;
+      color: var(--accent-2);
+      flex: 1 1 160px;
+      border: 1px solid rgba(159,243,210,0.2);
+    }
+
+    .status {
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: var(--accent-2);
+      min-height: 22px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    .status.error { color: var(--danger); }
+
+    .map-wrap {
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      margin-top: 12px;
+    }
+
+    #map {
+      width: 100%;
+      height: 320px;
+      background: #0d1728;
+    }
+
+    .map-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .picked {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .results {
+      display: grid;
+      gap: 12px;
+    }
+
+    .location-card {
+      background: linear-gradient(180deg, rgba(124,199,255,0.08), transparent 30%), var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 14px;
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .loc-name {
+      font-size: 1.15rem;
+      font-weight: 800;
+      margin: 0;
+      word-break: break-word;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+      word-break: break-word;
+    }
+
+    .temp {
+      font-size: 2rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px;
+    }
+
+    .metric .k {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 4px;
+    }
+
+    .metric .v {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .daily {
+      margin-top: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .day {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 0.9fr;
+      gap: 8px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      align-items: center;
+      font-size: 0.95rem;
+    }
+
+    .day .d { font-weight: 700; }
+    .day .cond, .day .temps { text-align: right; color: var(--muted); }
+
+    .install-banner {
+      display: none;
+      margin-bottom: 14px;
+      background: linear-gradient(135deg, rgba(124,199,255,0.15), rgba(159,243,210,0.08));
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .install-banner.show { display: block; }
+
+    .footer-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    a { color: var(--accent); }
+
+    @media (min-width: 700px) {
+      .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section id="installBanner" class="install-banner">
+      <div class="section-title">Install this weather bot</div>
+      <p>Add it to your home screen for an app-like experience on Chrome mobile.</p>
+      <div class="controls">
+        <button id="installBtn" class="tertiary">Install app</button>
+      </div>
+    </section>
+
+    <section class="hero">
+      <h1>Weather Bot</h1>
+      <p>Enter locations manually or tap the mini map to select a place. The app fetches live weather and a 5-day forecast using open weather data.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-title">Add locations</div>
+      <label for="locations">Location list</label>
+      <textarea id="locations" placeholder="Grapevine, TX&#10;Houston, TX">Grapevine, TX
+Houston, TX</textarea>
+      <div class="helper">One location per line. You can also add a place from the map below.</div>
+
+      <div class="controls">
+        <button id="fetchBtn" class="primary">Get weather</button>
+        <button id="sampleBtn" class="secondary">Load sample</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">Mini map selector</div>
+      <label for="searchBox">Search a place</label>
+      <input id="searchBox" type="text" placeholder="Search city, ZIP code, or place name" />
+      <div class="map-actions">
+        <button id="searchBtn" class="secondary">Search map</button>
+        <button id="useGpsBtn" class="secondary">Use my location</button>
+        <button id="addMapLocationBtn" class="tertiary">Add selected place</button>
+      </div>
+      <div class="map-wrap">
+        <div id="map"></div>
+      </div>
+      <div id="pickedLocation" class="picked">Tap anywhere on the map or search for a place.</div>
+      <div class="helper">Map tiles by OpenStreetMap. Reverse geocoding uses Nominatim.</div>
+    </section>
+
+    <section id="results" class="results"></section>
+
+    <div class="footer-note">
+      Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Map tiles © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Reverse geocoding by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a>.
+    </div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const els = {
+      locations: document.getElementById('locations'),
+      fetchBtn: document.getElementById('fetchBtn'),
+      sampleBtn: document.getElementById('sampleBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      status: document.getElementById('status'),
+      results: document.getElementById('results'),
+      searchBox: document.getElementById('searchBox'),
+      searchBtn: document.getElementById('searchBtn'),
+      useGpsBtn: document.getElementById('useGpsBtn'),
+      addMapLocationBtn: document.getElementById('addMapLocationBtn'),
+      pickedLocation: document.getElementById('pickedLocation'),
+      installBanner: document.getElementById('installBanner'),
+      installBtn: document.getElementById('installBtn')
+    };
+
+    const weatherCodes = {
+      0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+      45: 'Fog', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Moderate drizzle',
+      55: 'Dense drizzle', 56: 'Freezing drizzle', 57: 'Dense freezing drizzle',
+      61: 'Slight rain', 63: 'Moderate rain', 65: 'Heavy rain', 66: 'Freezing rain',
+      67: 'Heavy freezing rain', 71: 'Slight snow', 73: 'Moderate snow', 75: 'Heavy snow',
+      77: 'Snow grains', 80: 'Rain showers', 81: 'Heavy showers', 82: 'Violent showers',
+      85: 'Snow showers', 86: 'Heavy snow showers', 95: 'Thunderstorm',
+      96: 'Thunderstorm, hail', 99: 'Severe thunderstorm'
+    };
+
+    let map;
+    let marker;
+    let selectedPlace = null;
+    let deferredPrompt = null;
+
+    function setStatus(message = '', isError = false) {
+      els.status.textContent = message;
+      els.status.className = isError ? 'status error' : 'status';
+    }
+
+    function toLines(value) {
+      return value.split('\n').map(v => v.trim()).filter(Boolean);
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function buildLabel(parts) {
+      return parts.filter(Boolean).join(', ');
+    }
+
+    async function geocodeLocation(query) {
+      const trimmed = String(query || '').trim();
+      if (!trimmed) return null;
+
+      const candidates = [];
+      const addCandidate = (value) => {
+        const v = String(value || '').trim();
+        if (v && !candidates.includes(v)) candidates.push(v);
+      };
+
+      addCandidate(trimmed);
+      addCandidate(trimmed.replace(/,\s*United States$/i, ''));
+      addCandidate(trimmed.replace(/,\s*USA$/i, ''));
+      addCandidate(trimmed.replace(/,\s*United States of America$/i, ''));
+
+      const parts = trimmed.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) addCandidate(parts.slice(0, 2).join(', '));
+      if (parts.length >= 1) addCandidate(parts[0]);
+
+      for (const candidate of candidates) {
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=10&language=en&format=json`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        const results = Array.isArray(data.results) ? data.results : [];
+        if (!results.length) continue;
+
+        const lowered = candidate.toLowerCase();
+        const best = results.find(item => {
+          const fields = [item.name, item.admin1, item.country, item.admin2]
+            .filter(Boolean)
+            .join(', ')
+            .toLowerCase();
+          return fields.includes(lowered) || lowered.includes((item.name || '').toLowerCase());
+        }) || results[0];
+
+        return best;
+      }
+
+      return null;
+    }
+
+    async function reverseGeocode(lat, lon) {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) throw new Error('Reverse geocoding failed');
+      return res.json();
+    }
+
+    async function fetchForecast(lat, lon, timezone = 'auto') {
+      const params = new URLSearchParams({
+        latitude: lat,
+        longitude: lon,
+        timezone,
+        current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code',
+        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+        forecast_days: '5'
+      });
+      const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Forecast request failed');
+      return res.json();
+    }
+
+    function renderCard(inputName, place, forecast) {
+      const current = forecast.current;
+      const daily = forecast.daily;
+      const title = buildLabel([place.name, place.admin1, place.country]) || inputName;
+      const condition = weatherCodes[current.weather_code] || `Code ${current.weather_code}`;
+
+      const dailyRows = daily.time.map((date, i) => {
+        const cond = weatherCodes[daily.weather_code[i]] || `Code ${daily.weather_code[i]}`;
+        return `
+          <div class="day">
+            <div class="d">${formatDate(date)}</div>
+            <div class="cond">${cond}</div>
+            <div class="temps">${Math.round(daily.temperature_2m_max[i])}° / ${Math.round(daily.temperature_2m_min[i])}°</div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <article class="location-card">
+          <div class="top-row">
+            <div>
+              <h2 class="loc-name">${title}</h2>
+              <div class="subtle">Input: ${inputName}</div>
+              <div class="subtle">${condition}</div>
+            </div>
+            <div class="temp">${Math.round(current.temperature_2m)}°C</div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric"><div class="k">Feels like</div><div class="v">${Math.round(current.apparent_temperature)}°C</div></div>
+            <div class="metric"><div class="k">Humidity</div><div class="v">${current.relative_humidity_2m}%</div></div>
+            <div class="metric"><div class="k">Wind</div><div class="v">${Math.round(current.wind_speed_10m)} km/h</div></div>
+            <div class="metric"><div class="k">Rain chance</div><div class="v">${daily.precipitation_probability_max?.[0] ?? '—'}%</div></div>
+          </div>
+
+          <div class="daily">${dailyRows}</div>
+        </article>
+      `;
+    }
+
+    function appendLocationLine(text, coords = null) {
+      const lines = toLines(els.locations.value);
+      const value = coords
+        ? `@coords:${Number(coords.latitude).toFixed(5)},${Number(coords.longitude).toFixed(5)}|${text}`
+        : text;
+
+      if (!lines.includes(value)) {
+        els.locations.value = lines.length ? `${lines.join('\n')}\n${value}` : value;
+      }
+    }
+
+    function setPickedLocation(place) {
+      selectedPlace = place;
+      els.pickedLocation.innerHTML = `
+        <strong>Selected:</strong> ${place.label}<br>
+        <span>Lat:</span> ${place.latitude.toFixed(5)} &nbsp; <span>Lon:</span> ${place.longitude.toFixed(5)}
+      `;
+      if (marker) {
+        marker.setLatLng([place.latitude, place.longitude]);
+      } else {
+        marker = L.marker([place.latitude, place.longitude]).addTo(map);
+      }
+      marker.bindPopup(place.label).openPopup();
+    }
+
+    async function handleMapPick(lat, lon) {
+      try {
+        els.pickedLocation.textContent = 'Looking up selected place…';
+        const rev = await reverseGeocode(lat, lon);
+        const addr = rev.address || {};
+        const label = buildLabel([
+          addr.city || addr.town || addr.village || addr.hamlet || addr.county || addr.suburb,
+          addr.state,
+          addr.country
+        ]) || rev.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+        setPickedLocation({
+          label,
+          latitude: Number(lat),
+          longitude: Number(lon)
+        });
+      } catch (error) {
+        console.error(error);
+        setPickedLocation({
+          label: `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+          latitude: Number(lat),
+          longitude: Number(lon)
+        });
+      }
+    }
+
+    async function runWeatherBot() {
+      const inputs = toLines(els.locations.value);
+      els.results.innerHTML = '';
+
+      if (!inputs.length) {
+        setStatus('Please enter at least one location.', true);
+        return;
+      }
+
+      setStatus('Fetching weather…');
+      els.fetchBtn.disabled = true;
+
+      const cards = [];
+      const errors = [];
+
+      for (const location of inputs) {
+        try {
+          let place;
+          let inputLabel = location;
+
+          if (location.startsWith('@coords:')) {
+            const raw = location.slice(8);
+            const [coordPart, labelPart = 'Pinned location'] = raw.split('|');
+            const [latStr, lonStr] = coordPart.split(',');
+            const latitude = Number(latStr);
+            const longitude = Number(lonStr);
+
+            if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+              errors.push(`Invalid coordinates for “${location}”.`);
+              continue;
+            }
+
+            place = {
+              name: labelPart,
+              admin1: '',
+              country: '',
+              latitude,
+              longitude
+            };
+            inputLabel = labelPart;
+          } else {
+            place = await geocodeLocation(location);
+            if (!place) {
+              errors.push(`No match found for “${location}”.`);
+              continue;
+            }
+          }
+
+          const forecast = await fetchForecast(place.latitude, place.longitude);
+          cards.push(renderCard(inputLabel, place, forecast));
+        } catch (err) {
+          errors.push(`Failed for “${location}”.`);
+          console.error(err);
+        }
+      }
+
+      els.results.innerHTML = cards.join('');
+
+      if (cards.length && errors.length) {
+        setStatus(`Done with ${errors.length} issue(s). ${errors.join(' ')}`, true);
+      } else if (cards.length) {
+        setStatus(`Done. Loaded ${cards.length} location(s).`);
+      } else {
+        setStatus(errors.join(' ') || 'No results returned.', true);
+      }
+
+      els.fetchBtn.disabled = false;
+    }
+
+    function createManifestAndIcons() {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+          <defs>
+            <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#7cc7ff"/>
+              <stop offset="100%" stop-color="#5ea8ff"/>
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="110" fill="#0b1220"/>
+          <circle cx="190" cy="190" r="64" fill="url(#g)"/>
+          <path d="M144 320c0-42 34-76 76-76 31 0 57 14 71 39 9-5 20-8 31-8 35 0 64 29 64 64s-29 64-64 64H208c-35 0-64-29-64-64 0-7 1-13 2-19z" fill="#e8eefc"/>
+          <path d="M348 126l14 28 30 4-22 21 5 30-27-14-27 14 5-30-22-21 30-4z" fill="#9ff3d2"/>
+        </svg>`;
+
+      const iconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const manifest = {
+        name: 'Weather Bot PWA',
+        short_name: 'Weather Bot',
+        start_url: './',
+        display: 'standalone',
+        background_color: '#0b1220',
+        theme_color: '#0b1220',
+        icons: [
+          { src: iconUrl, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: iconUrl, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+        ]
+      };
+
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+      const manifestUrl = URL.createObjectURL(manifestBlob);
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestUrl;
+      document.head.appendChild(link);
+    }
+
+    async function registerServiceWorker() {
+      if (!('serviceWorker' in navigator)) return;
+
+      const swCode = `
+        const CACHE = 'weather-bot-v1';
+        self.addEventListener('install', event => {
+          event.waitUntil(caches.open(CACHE));
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', event => {
+          event.waitUntil(self.clients.claim());
+        });
+        self.addEventListener('fetch', event => {
+          if (event.request.method !== 'GET') return;
+          event.respondWith(
+            caches.match(event.request).then(cached => {
+              const fetchPromise = fetch(event.request)
+                .then(response => {
+                  const copy = response.clone();
+                  caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
+                  return response;
+                })
+                .catch(() => cached);
+              return cached || fetchPromise;
+            })
+          );
+        });
+      `;
+
+      const swBlob = new Blob([swCode], { type: 'text/javascript' });
+      const swUrl = URL.createObjectURL(swBlob);
+      try {
+        await navigator.serviceWorker.register(swUrl);
+      } catch (error) {
+        console.warn('Service worker registration skipped:', error);
+      }
+    }
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true }).setView([32.9356, -97.0781], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map);
+
+      map.on('click', async (event) => {
+        await handleMapPick(event.latlng.lat, event.latlng.lng);
+      });
+    }
+
+    els.fetchBtn.addEventListener('click', runWeatherBot);
+
+    els.sampleBtn.addEventListener('click', () => {
+      els.locations.value = 'Grapevine, TX\nHouston, TX\nSeattle, WA';
+      setStatus('Sample locations loaded.');
+    });
+
+    els.clearBtn.addEventListener('click', () => {
+      els.locations.value = '';
+      els.results.innerHTML = '';
+      setStatus('Cleared.');
+    });
+
+    els.searchBtn.addEventListener('click', async () => {
+      const query = els.searchBox.value.trim();
+      if (!query) {
+        setStatus('Enter a place name to search the map.', true);
+        return;
+      }
+      try {
+        setStatus('Searching map…');
+        const place = await geocodeLocation(query);
+        if (!place) {
+          setStatus('No matching place found.', true);
+          return;
+        }
+        map.setView([place.latitude, place.longitude], 10);
+        setPickedLocation({
+          label: buildLabel([place.name, place.admin1, place.country]),
+          latitude: place.latitude,
+          longitude: place.longitude
+        });
+        setStatus('Map updated.');
+      } catch (error) {
+        console.error(error);
+        setStatus('Map search failed.', true);
+      }
+    });
+
+    els.useGpsBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        setStatus('Geolocation is not available on this device.', true);
+        return;
+      }
+      setStatus('Getting your location…');
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          map.setView([latitude, longitude], 11);
+          await handleMapPick(latitude, longitude);
+          setStatus('Current location loaded.');
+        },
+        () => setStatus('Could not access your location.', true),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      );
+    });
+
+    els.addMapLocationBtn.addEventListener('click', () => {
+      if (!selectedPlace) {
+        setStatus('Pick a place on the map first.', true);
+        return;
+      }
+      appendLocationLine(selectedPlace.label, {
+        latitude: selectedPlace.latitude,
+        longitude: selectedPlace.longitude
+      });
+      setStatus('Selected map location added.');
+    });
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredPrompt = event;
+      els.installBanner.classList.add('show');
+    });
+
+    els.installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) {
+        setStatus('Install prompt is not available yet. Open this from a hosted HTTPS page in Chrome mobile.', true);
+        return;
+      }
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      els.installBanner.classList.remove('show');
+    });
+
+    window.addEventListener('appinstalled', () => {
+      els.installBanner.classList.remove('show');
+      setStatus('App installed to home screen.');
+    });
+
+    createManifestAndIcons();
+    registerServiceWorker();
+    initMap();
+  </script>
+</body>
+</html>
