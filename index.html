@@ -4,11 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1220" />
-  <meta name="description" content="Mobile-friendly weather bot with map picker and installable PWA support." />
-  <title>Weather Bot</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
+  <title>Mobile Weather Bot PWA</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -31,8 +27,9 @@
     }
 
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
+
     body {
+      margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: linear-gradient(180deg, #09111d 0%, #0e1627 100%);
       color: var(--text);
@@ -250,7 +247,7 @@
       font-size: 1rem;
     }
 
-    .daily {
+    .daily, .hourly {
       margin-top: 14px;
       display: grid;
       gap: 8px;
@@ -268,8 +265,28 @@
       font-size: 0.95rem;
     }
 
-    .day .d { font-weight: 700; }
-    .day .cond, .day .temps { text-align: right; color: var(--muted); }
+    .hour-row {
+      display: grid;
+      grid-template-columns: 0.9fr 1fr 0.8fr 0.8fr;
+      gap: 8px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      align-items: center;
+      font-size: 0.92rem;
+    }
+
+    .day .d, .hour-row .h { font-weight: 700; }
+    .day .cond, .day .temps, .hour-row .hc, .hour-row .ht, .hour-row .hp { text-align: right; color: var(--muted); }
+
+    .subsection-title {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--accent-2);
+    }
 
     .install-banner {
       display: none;
@@ -309,7 +326,7 @@
 
     <section class="hero">
       <h1>Weather Bot</h1>
-      <p>Enter locations manually or tap the mini map to select a place. The app fetches live weather and a 5-day forecast using open weather data.</p>
+      <p>Enter locations manually or tap the mini map to select a place. The app fetches live weather, next 24 hours, and a 5-day forecast using open weather data.</p>
     </section>
 
     <section class="card">
@@ -402,6 +419,11 @@ Houston, TX</textarea>
       return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     }
 
+    function formatHour(dateTimeStr) {
+      const d = new Date(dateTimeStr);
+      return d.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+    }
+
     function buildLabel(parts) {
       return parts.filter(Boolean).join(', ');
     }
@@ -418,9 +440,7 @@ Houston, TX</textarea>
     async function reverseGeocode(lat, lon) {
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
       const res = await fetch(url, {
-        headers: {
-          'Accept': 'application/json'
-        }
+        headers: { 'Accept': 'application/json' }
       });
       if (!res.ok) throw new Error('Reverse geocoding failed');
       return res.json();
@@ -432,6 +452,7 @@ Houston, TX</textarea>
         longitude: lon,
         timezone,
         current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code',
+        hourly: 'temperature_2m,precipitation_probability,weather_code',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
         forecast_days: '5'
       });
@@ -441,19 +462,64 @@ Houston, TX</textarea>
       return res.json();
     }
 
+    function getNext24Hours(hourly) {
+      if (!hourly || !hourly.time || !hourly.time.length) return [];
+      const now = new Date();
+      const rows = [];
+
+      for (let i = 0; i < hourly.time.length; i++) {
+        const entryTime = new Date(hourly.time[i]);
+        if (entryTime >= now) {
+          rows.push({
+            time: hourly.time[i],
+            temperature: hourly.temperature_2m?.[i],
+            precipitation: hourly.precipitation_probability?.[i],
+            weatherCode: hourly.weather_code?.[i]
+          });
+        }
+        if (rows.length === 24) break;
+      }
+
+      if (!rows.length) {
+        for (let i = 0; i < Math.min(24, hourly.time.length); i++) {
+          rows.push({
+            time: hourly.time[i],
+            temperature: hourly.temperature_2m?.[i],
+            precipitation: hourly.precipitation_probability?.[i],
+            weatherCode: hourly.weather_code?.[i]
+          });
+        }
+      }
+
+      return rows;
+    }
+
     function renderCard(inputName, place, forecast) {
       const current = forecast.current;
       const daily = forecast.daily;
+      const hourlyRows = getNext24Hours(forecast.hourly);
       const title = buildLabel([place.name, place.admin1, place.country]);
       const condition = weatherCodes[current.weather_code] || `Code ${current.weather_code}`;
 
-      const dailyRows = daily.time.map((date, i) => {
+      const dailyMarkup = daily.time.map((date, i) => {
         const cond = weatherCodes[daily.weather_code[i]] || `Code ${daily.weather_code[i]}`;
         return `
           <div class="day">
             <div class="d">${formatDate(date)}</div>
             <div class="cond">${cond}</div>
             <div class="temps">${Math.round(daily.temperature_2m_max[i])}° / ${Math.round(daily.temperature_2m_min[i])}°</div>
+          </div>
+        `;
+      }).join('');
+
+      const hourlyMarkup = hourlyRows.map((item) => {
+        const cond = weatherCodes[item.weatherCode] || `Code ${item.weatherCode}`;
+        return `
+          <div class="hour-row">
+            <div class="h">${formatHour(item.time)}</div>
+            <div class="hc">${cond}</div>
+            <div class="ht">${Math.round(item.temperature)}°C</div>
+            <div class="hp">${item.precipitation ?? '—'}%</div>
           </div>
         `;
       }).join('');
@@ -476,15 +542,22 @@ Houston, TX</textarea>
             <div class="metric"><div class="k">Rain chance</div><div class="v">${daily.precipitation_probability_max?.[0] ?? '—'}%</div></div>
           </div>
 
-          <div class="daily">${dailyRows}</div>
+          <div class="subsection-title">Next 24 hours</div>
+          <div class="hourly">${hourlyMarkup}</div>
+
+          <div class="subsection-title">5-day forecast</div>
+          <div class="daily">${dailyMarkup}</div>
         </article>
       `;
     }
 
-    function appendLocationLine(text) {
+    function appendLocationLine(text, coords = null) {
       const lines = toLines(els.locations.value);
-      if (!lines.includes(text)) {
-        els.locations.value = lines.length ? `${lines.join('\n')}\n${text}` : text;
+      const value = coords
+        ? `@coords:${Number(coords.latitude).toFixed(5)},${Number(coords.longitude).toFixed(5)}|${text}`
+        : text;
+      if (!lines.includes(value)) {
+        els.locations.value = lines.length ? `${lines.join('\n')}\n${value}` : value;
       }
     }
 
@@ -528,6 +601,51 @@ Houston, TX</textarea>
       }
     }
 
+    async function resolvePlace(location) {
+      if (location.startsWith('@coords:')) {
+        const raw = location.slice(8);
+        const [coordPart, labelPart = 'Pinned location'] = raw.split('|');
+        const [latStr, lonStr] = coordPart.split(',');
+        const latitude = Number(latStr);
+        const longitude = Number(lonStr);
+
+        if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+          throw new Error(`Invalid coordinates for ${location}`);
+        }
+
+        return {
+          inputLabel: labelPart,
+          place: {
+            name: labelPart,
+            admin1: '',
+            country: '',
+            latitude,
+            longitude
+          }
+        };
+      }
+
+      const normalized = location
+        .replace(/,\s*United States$/i, '')
+        .replace(/,\s*USA$/i, '')
+        .trim();
+
+      const attempts = [
+        normalized,
+        normalized.split(',').slice(0, 2).join(',').trim(),
+        normalized.split(',')[0].trim()
+      ].filter((value, index, arr) => value && arr.indexOf(value) === index);
+
+      for (const query of attempts) {
+        const place = await geocodeLocation(query);
+        if (place) {
+          return { inputLabel: location, place };
+        }
+      }
+
+      return null;
+    }
+
     async function runWeatherBot() {
       const inputs = toLines(els.locations.value);
       els.results.innerHTML = '';
@@ -545,13 +663,13 @@ Houston, TX</textarea>
 
       for (const location of inputs) {
         try {
-          const place = await geocodeLocation(location);
-          if (!place) {
+          const resolved = await resolvePlace(location);
+          if (!resolved) {
             errors.push(`No match found for “${location}”.`);
             continue;
           }
-          const forecast = await fetchForecast(place.latitude, place.longitude);
-          cards.push(renderCard(location, place, forecast));
+          const forecast = await fetchForecast(resolved.place.latitude, resolved.place.longitude);
+          cards.push(renderCard(resolved.inputLabel, resolved.place, forecast));
         } catch (err) {
           errors.push(`Failed for “${location}”.`);
           console.error(err);
@@ -571,12 +689,78 @@ Houston, TX</textarea>
       els.fetchBtn.disabled = false;
     }
 
+    function createManifestAndIcons() {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+          <defs>
+            <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#7cc7ff"/>
+              <stop offset="100%" stop-color="#5ea8ff"/>
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="110" fill="#0b1220"/>
+          <circle cx="190" cy="190" r="64" fill="url(#g)"/>
+          <path d="M144 320c0-42 34-76 76-76 31 0 57 14 71 39 9-5 20-8 31-8 35 0 64 29 64 64s-29 64-64 64H208c-35 0-64-29-64-64 0-7 1-13 2-19z" fill="#e8eefc"/>
+          <path d="M348 126l14 28 30 4-22 21 5 30-27-14-27 14 5-30-22-21 30-4z" fill="#9ff3d2"/>
+        </svg>`;
+
+      const iconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const manifest = {
+        name: 'Weather Bot PWA',
+        short_name: 'Weather Bot',
+        start_url: './',
+        display: 'standalone',
+        background_color: '#0b1220',
+        theme_color: '#0b1220',
+        icons: [
+          { src: iconUrl, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: iconUrl, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+        ]
+      };
+
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+      const manifestUrl = URL.createObjectURL(manifestBlob);
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestUrl;
+      document.head.appendChild(link);
+    }
+
     async function registerServiceWorker() {
       if (!('serviceWorker' in navigator)) return;
+
+      const swCode = `
+        const CACHE = 'weather-bot-v1';
+        self.addEventListener('install', event => {
+          event.waitUntil(caches.open(CACHE));
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', event => {
+          event.waitUntil(self.clients.claim());
+        });
+        self.addEventListener('fetch', event => {
+          if (event.request.method !== 'GET') return;
+          event.respondWith(
+            caches.match(event.request).then(cached => {
+              const fetchPromise = fetch(event.request)
+                .then(response => {
+                  const copy = response.clone();
+                  caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => {});
+                  return response;
+                })
+                .catch(() => cached);
+              return cached || fetchPromise;
+            })
+          );
+        });
+      `;
+
+      const swBlob = new Blob([swCode], { type: 'text/javascript' });
+      const swUrl = URL.createObjectURL(swBlob);
       try {
-        await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.register(swUrl);
       } catch (error) {
-        console.warn('Service worker registration failed:', error);
+        console.warn('Service worker registration skipped:', error);
       }
     }
 
@@ -654,7 +838,10 @@ Houston, TX</textarea>
         setStatus('Pick a place on the map first.', true);
         return;
       }
-      appendLocationLine(selectedPlace.label);
+      appendLocationLine(selectedPlace.label, {
+        latitude: selectedPlace.latitude,
+        longitude: selectedPlace.longitude
+      });
       setStatus('Selected map location added.');
     });
 
@@ -666,7 +853,7 @@ Houston, TX</textarea>
 
     els.installBtn.addEventListener('click', async () => {
       if (!deferredPrompt) {
-        setStatus('Install prompt is not available yet. Open this from an HTTPS-hosted page in Chrome mobile.', true);
+        setStatus('Install prompt is not available yet. Open this from a hosted HTTPS page in Chrome mobile.', true);
         return;
       }
       deferredPrompt.prompt();
@@ -680,6 +867,7 @@ Houston, TX</textarea>
       setStatus('App installed to home screen.');
     });
 
+    createManifestAndIcons();
     registerServiceWorker();
     initMap();
   </script>
